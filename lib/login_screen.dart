@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-import 'package:itis_project_python/home.dart';
 import 'package:itis_project_python/home_screen.dart';
 import 'package:itis_project_python/pallete.dart';
 import 'package:itis_project_python/register_screen.dart';
-import 'package:itis_project_python/reset_password_screen.dart';
+import 'package:itis_project_python/send_reset_link.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -206,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             child: ElevatedButton(
               onPressed: () {
-                if(_role!.isEmpty){
+                if(_role.isEmpty){
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Role is not selected. Please choose one.')));
                 }
                 else{
@@ -247,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => ResetPasswordScreen()),
+                          MaterialPageRoute(builder: (context) => SendResetLinkScreen()),
                         );
                       },
                       child: Text('Forgot Password?'),
