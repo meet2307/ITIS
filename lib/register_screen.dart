@@ -66,6 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  // text-field for e-mail
                   ConstrainedBox(
                     constraints: const BoxConstraints(
                       maxWidth: 400,
@@ -73,9 +74,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: TextFormField(
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       controller: _emailController,
-                      validator: (value){
-                        if(value!.isEmpty){
+                      validator: (value) {
+                        if (value!.isEmpty) {
                           return "Email is required";
+                        }
+                        RegExp emailRegex = RegExp(
+                          r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$',
+                          caseSensitive: false,
+                        );
+                        if (!emailRegex.hasMatch(value)) {
+                          return "Enter a valid email address";
                         }
                         return null;
                       },
@@ -100,6 +108,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 15),
+                  // text-field for user name
                   ConstrainedBox(
                     constraints: const BoxConstraints(
                       maxWidth: 400,
@@ -143,6 +152,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   //   child: Text('Register'),
                   // ),
                   const SizedBox(height: 15),
+                  //text-field for password
                   ConstrainedBox(
                     constraints: const BoxConstraints(
                       maxWidth: 400,
@@ -154,41 +164,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value!.isEmpty) {
                           return 'Password is required';
                         }
+                        if (value.length < 8) {
+                          return 'Password must be at least 8 characters long';
+                        }
+                        RegExp hasNumber = RegExp(r'\d');
+                        if (!hasNumber.hasMatch(value)) {
+                          return 'Password must contain at least one number';
+                        }
+                        RegExp hasUpper = RegExp(r'[A-Z]');
+                        if (!hasUpper.hasMatch(value)) {
+                          return 'Password must contain at least one uppercase letter';
+                        }
+                        RegExp hasLower = RegExp(r'[a-z]');
+                        if (!hasLower.hasMatch(value)) {
+                          return 'Password must contain at least one lowercase letter';
+                        }
+                        RegExp hasSpecialCharacters =
+                        RegExp(r'[!@#$%^&*(),.?":{}|<>]');
+                        if (!hasSpecialCharacters.hasMatch(value)) {
+                          return 'Password must contain at least one special character';
+                        }
                         return null;
                       },
                       obscureText: !isVisible,
                       decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.all(27),
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(
-                              color: Pallete.borderColor,
-                              width: 3,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
+                        contentPadding: const EdgeInsets.all(27),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(
+                            color: Pallete.borderColor,
+                            width: 3,
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(
-                              color: Pallete.gradient2,
-                              width: 3,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(
+                            color: Pallete.gradient2,
+                            width: 3,
                           ),
-                          hintText: 'Password',
-                          suffixIcon: IconButton(
-                              onPressed: () {
-                                //In here we will create a click to show and hide the password a toggle button
-                                setState(() {
-                                  //toggle button
-                                  isVisible = !isVisible;
-                                });
-                              },
-                              icon: Icon(isVisible
-                                  ? Icons.visibility
-                                  : Icons.visibility_off))
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        hintText: 'Password',
+                        suffixIcon: IconButton(
+                            onPressed: () {
+                              // Toggle visibility
+                              setState(() {
+                                isVisible = !isVisible;
+                              });
+                            },
+                            icon: Icon(
+                              isVisible ? Icons.visibility : Icons.visibility_off,
+                            )),
                       ),
                     ),
                   ),
                   const SizedBox(height: 15),
+                  //user role selection
                   ConstrainedBox(
                     constraints: const BoxConstraints(
                       maxWidth: 400,
