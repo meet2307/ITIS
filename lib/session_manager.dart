@@ -1,22 +1,25 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionManager {
-  final FlutterSecureStorage _storage = FlutterSecureStorage();
+  static final SessionManager _instance = SessionManager._internal();
+  factory SessionManager() => _instance;
+  SessionManager._internal();
 
-  Future<void> saveToken(String token) async {
-    await _storage.write(key: 'auth_token', value: token);
+  SharedPreferences? _prefs;
+
+  Future<void> initPrefs() async {
+    _prefs = await SharedPreferences.getInstance();
   }
 
-  Future<String?> getToken() async {
-    return await _storage.read(key: 'auth_token');
+  Future<void> setUserToken(String token) async {
+    await _prefs?.setString('userToken', token);
   }
 
-  Future<void> signOut() async {
-    await _storage.delete(key: 'auth_token');
+  String? getUserToken() {
+    return _prefs?.getString('userToken');
   }
 
-  Future<bool> isAuthenticated() async {
-    String? token = await getToken();
-    return token != null;
+  Future<void> logout() async {
+    await _prefs?.remove('userToken');
   }
 }

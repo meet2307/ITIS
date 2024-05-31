@@ -5,6 +5,7 @@ import 'package:itis_project_python/home_screen.dart';
 import 'package:itis_project_python/pallete.dart';
 import 'package:itis_project_python/register_screen.dart';
 import 'package:itis_project_python/send_reset_link.dart';
+import 'package:itis_project_python/session_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -40,6 +41,13 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invalid credentials')));
     }
+  }
+
+  // Assuming you have a method to handle successful login
+  void _handleLoginSuccess(String token) {
+    SessionManager().setUserToken(token).then((_) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => HomeScreen(userRole: 'admin')));
+    });
   }
 
   @override

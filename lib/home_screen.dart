@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:itis_project_python/login_screen.dart';
+import 'package:itis_project_python/session_manager.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -81,15 +83,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _signOut() {
-    // Navigate to login screen and show sign-out message
-    Navigator.of(context).pushReplacementNamed('/login');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('You have successfully signed out.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  void _logout() {
+    SessionManager().logout().then((_) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => LoginScreen()));
+    });
   }
 
   @override
@@ -101,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: <Widget>[
           IconButton(
             icon: Icon(Icons.exit_to_app),
-            onPressed: _signOut,
+            onPressed: _logout,
             tooltip: 'Sign Out',
           ),
         ],
