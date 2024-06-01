@@ -1,11 +1,10 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:itis_project_python/login_screen.dart';
 import 'package:itis_project_python/session_manager.dart';
 import 'dart:convert';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'dart:html' as html;
 
 class HomeScreen extends StatefulWidget {
   final String userRole; // User role passed to check permissions
@@ -19,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> books = [];
   List<dynamic> filteredBooks = [];
   TextEditingController searchController = TextEditingController();
+  PlatformFile? selectedFile;
 
   @override
   void initState() {
@@ -60,26 +60,111 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _downloadBook(int bookId) async {
-    var status = await Permission.storage.request();
-    if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Storage permission is needed to download files')));
+  // Future<void> _downloadBook(int bookId) async {
+  //   print(bookId);
+  //   if (widget.userRole != 'student') { // Assume only 'admin' can download
+  //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+  //         content: Text('You do not have permission to download books')));
+  //     return;
+  //   }
+  //   var response = await http.get(
+  //       Uri.parse('http://localhost:5000/download/$bookId'));
+  //   if (response.statusCode == 200) {
+  //     // Process the download
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Download started...')));
+  //   } else {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Failed to download book')));
+  //   }
+  // }
+
+  String _sanitizeFileName(String fileName) {
+    return fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+  }
+
+  Future<void> _downloadBook(int bookId, String bookTitle) async {
+    String sanitizedTitle = _sanitizeFileName(bookTitle);
+
+    var response = await http.get(Uri.parse('http://localhost:5000/download/$bookId'));
+    if (response.statusCode == 200) {
+      final bytes = response.bodyBytes;
+      final blob = html.Blob([bytes], 'application/pdf');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', '$sanitizedTitle.pdf')
+        ..click();
+      html.Url.revokeObjectUrl(url);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Downloaded book successfully')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to download book')),
+      );
+    }
+  }
+
+  Future<void> _deleteBook(int bookId) async {
+    var response = await http.delete(
+      Uri.parse('http://localhost:5000/delete_book/$bookId'),
+    );
+
+    if (response.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Book deleted successfully')));
+      _fetchBooks(); // Refresh the book list
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete book')));
+    }
+  }
+
+  Future<void> _insertBook() async {
+    if (selectedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No file selected')));
       return;
     }
 
-    final uri = Uri.parse('http://localhost:5000/download/$bookId');
     try {
-      var response = await http.get(uri);
+      String base64File = base64Encode(selectedFile!.bytes!);
+      var response = await http.post(
+        Uri.parse('http://localhost:5000/add_book'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode({
+          'title': selectedFile!.name,
+          'file_data': base64File,
+        }),
+      );
+
       if (response.statusCode == 200) {
-        String dir = (await getApplicationDocumentsDirectory()).path;
-        File file = new File('$dir/book-$bookId.pdf');
-        await file.writeAsBytes(response.bodyBytes);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download completed and saved to $dir')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Book added successfully')));
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => HomeScreen(userRole: 'admin')),
+          //MaterialPageRoute(builder: (context) => Home()),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to download book')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to add book: ${response.statusCode}')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error downloading book: $e')));
+      print('Error occurred: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('An error occurred: $e')));
+    }
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true);
+      if (result != null) {
+        selectedFile = result.files.first;
+        _insertBook();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('File selection cancelled')));
+      }
+    } catch (e) {
+      print('Error occurred during file selection: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('An error occurred during file selection: $e')));
     }
   }
 
@@ -116,6 +201,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+          if (widget.userRole == 'admin')
+            Padding(
+              padding: EdgeInsets.all(8.0),
+              child: ElevatedButton(
+                onPressed: _pickFile,
+                child: Text('Add Books'),
+              ),
+            ),
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -125,7 +218,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 columns: [
                   DataColumn(label: Text('Title')),
                   DataColumn(label: Text('Book ID')),
-                  DataColumn(label: Text('Actions')),
+                  DataColumn(label: Text('Download')),
+                  if(widget.userRole=='admin')
+                    DataColumn(label: Text('Delete')),
                 ],
                 rows: filteredBooks.map<DataRow>((book) => DataRow(
                   cells: [
@@ -133,8 +228,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     DataCell(Text(book['id'].toString())),
                     DataCell(IconButton(
                       icon: Icon(Icons.download, color: Colors.blue),
-                      onPressed: () => _downloadBook(book['id']),
+                      onPressed: () => _downloadBook(book['id'], book['title']),
                     )),
+                    if(widget.userRole=='admin')
+                      DataCell(IconButton(
+                        icon: Icon(Icons.delete, color: Colors.blue),
+                        onPressed: () => _deleteBook(book['id']),
+                      )),
                   ],
                 )).toList(),
               ),
