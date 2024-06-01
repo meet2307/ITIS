@@ -1,11 +1,15 @@
-from flask import Flask, jsonify, request, send_from_directory, url_for, g
+from flask import Flask, jsonify, request, send_from_directory, send_file, url_for, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer as Serializer
 import os
+import base64
 import time
+import random
+import string
+import io
 
 reset_username=""
 
@@ -24,7 +28,7 @@ DEBUG = True
 ENV = 'development'  # or 'production'
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 mail = Mail(app)
 
 class User(db.Model):
@@ -40,6 +44,7 @@ class User(db.Model):
     role = db.Column(db.String(20), default='user')
     reset_token = db.Column(db.String(200), nullable=True)
     reset_token_validated = db.Column(db.Boolean, default=False)
+    two_fa_code = db.Column(db.String(6), nullable=True)
 
     def get_reset_password_token(self, expires_sec='1800'):
         print("REACHED")
@@ -68,7 +73,9 @@ class User(db.Model):
 class Book(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    filepath = db.Column(db.String(200), nullable=False)
+    #filepath = db.Column(db.String(200), nullable=False)
+    data = db.Column(db.LargeBinary, nullable=False)
+    mimetype = db.Column(db.String(50), nullable=False)
 
 
 
@@ -151,20 +158,85 @@ def login():
     data = request.json
     user = User.query.filter_by(username=data['username']).first()
     if user and bcrypt.check_password_hash(user.password, data['password']) and user.role==data['role']:
+
+        user.two_fa_code = ''.join(random.choices(string.digits, k=6))
+        db.session.commit()
+        msg = Message('Your 2FA Code', recipients=[user.email])
+        msg.body = f'Your 2FA code is {user.two_fa_code}'
+        mail.send(msg)
+
         return jsonify({"message": "Login successful", "role": user.role}), 200
     return jsonify({"error": "Invalid credentials"}), 401
 
+@app.route('/verify_2fa', methods=['POST'])
+def verify_2fa():
+    data = request.get_json()
+    user = User.query.filter_by(username=data['username']).first()
+
+    if user and user.two_fa_code == data['code']:
+        user.two_fa_code = None  # Clear the 2FA code once it has been used
+        db.session.commit()
+        return jsonify({'message': '2FA verification successful'}), 200
+
+    return jsonify({'message': 'Invalid 2FA code'}), 401
 
 @app.route('/books', methods=['GET'])
 def list_books():
     books = Book.query.all()
     return jsonify({'books': [{ 'id': book.id, 'title': book.title } for book in books]}), 200
 
+# @app.route('/download/<int:book_id>', methods=['GET'])
+# def download_book(book_id):
+#     book = Book.query.get(book_id)
+#     if book:
+#         return send_from_directory(os.path.abspath(os.path.dirname(__file__)), book.filepath, as_attachment=True)
+#     return jsonify({"error": "Book not found"}), 404
+@app.route('/add_book', methods=['POST'])
+def insert_book():
+    print("READY TO INSERT")
+    data = request.json
+    title=data['title']
+    file_data = base64.b64decode(data['file_data'])
+    # with open(file_path, 'rb') as file:
+    #     file_data = file.read()
+    mimetype = 'application/pdf'
+    new_book = Book(title=title, data=file_data, mimetype=mimetype)
+    db.session.add(new_book)
+    db.session.commit()
+    return jsonify({"message": "Upload successful"}), 200
+
+@app.route('/delete_book/<int:book_id>', methods=['DELETE'])
+def delete_book(book_id):
+    try:
+        book = Book.query.get(book_id)
+        if not book:
+            return jsonify({'message': 'Book not found'}), 404
+
+        db.session.delete(book)
+        db.session.commit()
+        return jsonify({'message': 'Book deleted successfully'}), 200
+    except Exception as e:
+        print(f'Error occurred: {e}')
+        return jsonify({'message': f'Failed to delete book: {e}'}), 500
+
 @app.route('/download/<int:book_id>', methods=['GET'])
 def download_book(book_id):
+    print("BOOK ACCESS")
     book = Book.query.get(book_id)
     if book:
-        return send_from_directory(os.path.abspath(os.path.dirname(__file__)), book.filepath, as_attachment=True)
+        print("BOOK FOUND")
+        print("BOOK_ID:",book.id)
+        print("BOOK_TITLE:", book.title)
+        print("BOOK_DATA:", book.data)
+        print("BOOK_MIME:", book.mimetype)
+        file_response=send_file(
+            io.BytesIO(book.data),
+            mimetype=book.mimetype,
+            as_attachment=True,
+            download_name=f"{book.title}.pdf"
+        )
+        print("FILE:",file_response)
+        return file_response
     return jsonify({"error": "Book not found"}), 404
 
 
